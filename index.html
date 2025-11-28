@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SALTO Youth Events Scraper</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; background: white; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); overflow: hidden; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }
+        .header h1 { font-size: 2.5em; margin-bottom: 10px; }
+        .header p { font-size: 1.1em; opacity: 0.9; }
+        .content { padding: 30px; }
+        .controls { display: flex; gap: 15px; margin-bottom: 30px; flex-wrap: wrap; }
+        .btn { padding: 15px 30px; font-size: 16px; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; transition: all 0.3s ease; display: flex; align-items: center; gap: 10px; }
+        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4); }
+        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .btn-success { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; }
+        .btn-success:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(56, 239, 125, 0.4); }
+        .btn-success:disabled { opacity: 0.6; cursor: not-allowed; }
+        .status { background: #f8f9fa; border-left: 4px solid #667eea; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
+        .status h3 { color: #667eea; margin-bottom: 10px; }
+        .progress-bar { width: 100%; height: 30px; background: #e9ecef; border-radius: 15px; overflow: hidden; margin: 15px 0; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); width: 0%; transition: width 0.3s ease; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; }
+        .log { background: #1e1e1e; color: #00ff00; padding: 20px; border-radius: 10px; max-height: 400px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 14px; line-height: 1.6; }
+        .log-entry { margin-bottom: 5px; }
+        .log-entry.info { color: #00ff00; }
+        .log-entry.success { color: #00ffff; }
+        .log-entry.error { color: #ff4444; }
+        .results-table { width: 100%; overflow-x: auto; margin-top: 20px; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6; }
+        th { background: #667eea; color: white; font-weight: 600; position: sticky; top: 0; }
+        tr:hover { background: #f8f9fa; }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .stat-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px; text-align: center; }
+        .stat-card h4 { font-size: 14px; opacity: 0.9; margin-bottom: 10px; }
+        .stat-card .number { font-size: 32px; font-weight: bold; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎓 SALTO Youth Events Scraper</h1>
+            <p>Estrai tutti gli eventi di formazione dal calendario europeo SALTO-YOUTH</p>
+        </div>
+        <div class="content">
+            <div class="controls">
+                <button id="startBtn" class="btn btn-primary"><span>▶️ Avvia Scraping</span></button>
+                <button id="downloadBtn" class="btn btn-success" disabled><span>⬇️ Scarica CSV</span></button>
+            </div>
+            <div class="stats hidden" id="stats">
+                <div class="stat-card"><h4>Eventi Trovati</h4><div class="number" id="totalEvents">0</div></div>
+                <div class="stat-card"><h4>Eventi Processati</h4><div class="number" id="processedEvents">0</div></div>
+                <div class="stat-card"><h4>Tempo Trascorso</h4><div class="number" id="elapsedTime">0s</div></div>
+            </div>
+            <div class="status">
+                <h3>📊 Stato</h3>
+                <p id="statusText">Pronto per iniziare</p>
+                <div class="progress-bar"><div class="progress-fill" id="progressBar">0%</div></div>
+            </div>
+            <div class="status">
+                <h3>📝 Log</h3>
+                <div class="log" id="logContainer"><div class="log-entry info">Sistema pronto. Clicca "Avvia Scraping" per iniziare...</div></div>
+            </div>
+            <div class="results-table hidden" id="resultsSection">
+                <h3>📋 Risultati (Prime 10 righe)</h3>
+                <div style="overflow-x: auto;">
+                    <table id="resultsTable">
+                        <thead><tr><th>Titolo</th><th>Tipo</th><th>Date</th><th>Luogo</th><th>Scadenza</th><th>Partecipanti</th></tr></thead>
+                        <tbody id="resultsBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        const startBtn = document.getElementById('startBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const statusText = document.getElementById('statusText');
+        const progressBar = document.getElementById('progressBar');
+        const logContainer = document.getElementById('logContainer');
+        const resultsSection = document.getElementById('resultsSection');
+        const resultsBody = document.getElementById('resultsBody');
+        const statsSection = document.getElementById('stats');
+        const totalEventsEl = document.getElementById('totalEvents');
+        const processedEventsEl = document.getElementById('processedEvents');
+        const elapsedTimeEl = document.getElementById('elapsedTime');
+
+        let startTime;
+        let timerInterval;
+
+        function addLog(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logContainer.appendChild(entry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        function updateProgress(current, total) {
+            const percent = Math.round((current / total) * 100);
+            progressBar.style.width = `${percent}%`;
+            progressBar.textContent = `${percent}%`;
+        }
+
+        function updateTimer() {
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            elapsedTimeEl.textContent = `${elapsed}s`;
+        }
+
+        startBtn.addEventListener('click', async () => {
+            startBtn.disabled = true;
+            downloadBtn.disabled = true;
+            statsSection.classList.remove('hidden');
+            resultsSection.classList.add('hidden');
+
+            startTime = Date.now();
+            timerInterval = setInterval(updateTimer, 1000);
+
+            addLog('🚀 Avvio scraping...', 'info');
+            statusText.textContent = 'Scraping in corso...';
+
+            try {
+                const response = await fetch('/scrape', { method: 'POST' });
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('
+
+');
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = JSON.parse(line.slice(6));
+
+                            if (data.type === 'log') {
+                                addLog(data.message, data.level);
+                            } else if (data.type === 'progress') {
+                                updateProgress(data.current, data.total);
+                                processedEventsEl.textContent = data.current;
+                                totalEventsEl.textContent = data.total;
+                            } else if (data.type === 'complete') {
+                                clearInterval(timerInterval);
+                                addLog(`✅ Scraping completato! ${data.count} eventi estratti.`, 'success');
+                                statusText.textContent = `Completato! ${data.count} eventi estratti.`;
+                                downloadBtn.disabled = false;
+                                displayResults(data.preview);
+                            } else if (data.type === 'error') {
+                                clearInterval(timerInterval);
+                                addLog(`❌ Errore: ${data.message}`, 'error');
+                                statusText.textContent = 'Errore durante lo scraping';
+                                startBtn.disabled = false;
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                clearInterval(timerInterval);
+                addLog(`❌ Errore: ${error.message}`, 'error');
+                statusText.textContent = 'Errore durante lo scraping';
+                startBtn.disabled = false;
+            }
+        });
+
+        downloadBtn.addEventListener('click', () => {
+            window.location.href = '/download';
+        });
+
+        function displayResults(preview) {
+            resultsSection.classList.remove('hidden');
+            resultsBody.innerHTML = '';
+            preview.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${row.title}</td>
+                    <td>${row.type}</td>
+                    <td>${row.dates}</td>
+                    <td>${row.location}</td>
+                    <td>${row.application_deadline}</td>
+                    <td>${row.participants_no}</td>
+                `;
+                resultsBody.appendChild(tr);
+            });
+        }
+    </script>
+</body>
+</html>
